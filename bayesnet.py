@@ -1,5 +1,5 @@
 from itertools import product
-
+from operator import itemgetter
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
@@ -131,7 +131,9 @@ class LikelihoodWeighting:
         Returns:
             float: Returns the conditional probability of the hypothesis.
         """
-        hypothesis_expr = self._get_events_expr([hypothesis])
+        hypothesis_var, _ = self._get_var_val(hypothesis)
+        evidencies = list(zip(map(itemgetter(0), map(self._get_var_val, evidencies)), evidencies))
+        hypothesis_expr = self._get_events_expr([(hypothesis_var, hypothesis)])
         evidence_expr = self._get_events_expr(evidencies)
 
         expr = '{} & {}'.format(hypothesis_expr, evidence_expr)
@@ -380,6 +382,7 @@ class BayesNetwork:
         df = self.cond_dist(hypothesis_var, evidencies_vars)
 
         events = [hypothesis] + evidencies
+        events = list(zip(map(itemgetter(0), map(self._get_var_val, events)), events))
         expr = self._get_events_expr(events)
         query = df.query(expr)
 
