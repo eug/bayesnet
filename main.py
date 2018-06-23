@@ -2,77 +2,143 @@ import sys
 import pandas as pd
 from sklearn.metrics import accuracy_score
 from bayesnet import BayesNetwork
+import getopt
 
 
-# likelihood weightening
-tr = pd.read_csv("input/cmc_train.csv")
-ts = pd.read_csv("input/cmc_test.csv")
-
-bn = BayesNetwork(pd.concat([tr, ts], axis=0))
-bn.add_edge('wifes_age', 'wifes_edu')
-bn.add_edge('wifes_age', 'wifes_rel')
-bn.add_edge('n_children', 'wifes_working')
-bn.add_edge('wifes_age', 'wifes_working')
-bn.add_edge('husbands_occ', 'wifes_working')
-bn.add_edge('sol', 'wifes_working')
-bn.add_edge('husbands_edu', 'husbands_occ')
-bn.add_edge('sol', 'n_children')
-bn.add_edge('wifes_age', 'n_children')
-bn.add_edge('wifes_edu', 'n_children')
-bn.add_edge('media', 'n_children')
-bn.add_edge('wifes_edu', 'sol')
-bn.add_edge('husbands_occ', 'sol')
-bn.add_edge('wifes_edu', 'media')
-bn.add_edge('husbands_edu', 'media')
-bn.add_edge('wifes_rel', 'media')
-bn.add_edge('wifes_age', 'contraceptive')
-bn.add_edge('wifes_edu', 'contraceptive')
-bn.add_edge('n_children', 'contraceptive')
-bn.add_edge('wifes_working', 'contraceptive')
-
-lw = bn.likelihood_weighting(9, 100000)
-print(lw.prob('media_1'))
+class Config:
+    train_file = 'input/cmc_train.csv'
+    test_file = 'input/cmc_test.csv'
+    mode_predict = False
+    samples = 0
+    prob_event = None
+    cond_events = None
+    show_help = False
 
 
-# BayesNet
-tr = pd.read_csv("input/cmc_train.csv")
-ts = pd.read_csv("input/cmc_test.csv")
+def parse_args(argv):
+    shortopts = '_p:c:s:h'
 
-bn = BayesNetwork(tr)
-bn.add_edge('wifes_age', 'wifes_edu')
-bn.add_edge('wifes_age', 'wifes_rel')
-bn.add_edge('n_children','wifes_working')
-bn.add_edge('wifes_age','wifes_working')
-bn.add_edge('husbands_occ','wifes_working')
-bn.add_edge('sol','wifes_working')
-bn.add_edge('husbands_edu', 'husbands_occ')
-bn.add_edge('sol', 'n_children')
-bn.add_edge('wifes_age', 'n_children')
-bn.add_edge('wifes_edu', 'n_children')
-bn.add_edge('media', 'n_children')
-bn.add_edge('wifes_edu', 'sol')
-bn.add_edge('husbands_occ', 'sol')
-bn.add_edge('wifes_edu', 'media')
-bn.add_edge('husbands_edu', 'media')
-bn.add_edge('wifes_rel', 'media')
-bn.add_edge('wifes_age', 'contraceptive')
-bn.add_edge('wifes_edu', 'contraceptive')
-bn.add_edge('n_children', 'contraceptive')
-bn.add_edge('wifes_working', 'contraceptive')
+    longopts = [
+        'predict',
+        'prob=',
+        'cond=',
+        'samples=',
+        'help'
+    ]
 
-print(bn.prob('media_1'))
-#y_preds = bn.predict(ts.drop('contraceptive', axis=1))
-#print('accuracy={:.2f}%'.format(accuracy_score(ts['contraceptive'], y_preds) * 100))
+    config = Config()
+    options, _ = getopt.getopt(sys.argv[1:], shortopts, longopts)
 
-# results
-# lw(2, 1000) / lw.cond_prob('media_1') = 0.41 / bn.cond_prod('media_1') = 0.07   50s
-# lw(2, 10000) / lw.cond_prob('media_1') = 0.4110801652645 / bn.cond_prod('media_1') = 0.07   50s
-# lw(2, 100000) / lw.cond_prob('media_1') = 0.414491685951 / bn.cond_prod('media_1') = 0.07    8m
-# lw(5, 1000) / lw.cond_prob('media_1') = 0.318756696953879 / bn.cond_prod('media_1') = 0.07   12s
-# lw(7, 1000) / lw.cond_prob('media_1') = 0.182838283756438 / bn.cond_prod('media_1') = 0.07   15s
-# lw(8, 1000) / lw.cond_prob('media_1') = 0.138762006575695 / bn.cond_prod('media_1') = 0.07   17s
-# lw(9, 1000) / lw.cond_prob('media_1') = 0.108735385791377 / bn.cond_prod('media_1') = 0.07   17s
-# lw(9, 10000) / lw.cond_prob('media_1') = 0.09545720230920 / bn.cond_prod('media_1') = 0.07   3m
+    for opt, arg in options:
+        if opt == '--train':
+            config.train_file = arg
+        elif opt == '--test':
+            config.test_file = arg
+        elif opt == '--predict':
+            config.mode_predict = True
+        elif opt in ('-s', '--samples'):
+            config.samples = int(arg)
+        elif opt in ('-p', '--prob'):
+            config.prob_event = arg
+        elif opt in ('-c', '--cond'):
+            config.cond_events = arg.split(',')
+        elif opt in ('-h', '--help'):
+            config.show_help = True
 
-# quanto mais variaveis fixas, menos tempo levar para computar e mais aproximado da probabilidade 'real'
-# o numero de samples alto nao faz uma diferenca significativa no calculo da probabilidade
+    return config
+
+def print_help():
+    print("""Bayes Network Demo
+Usage:
+    python main.py --predict
+    python main.py -p wifes_age_1 -c husbands_occ_1,sol_4 -s 1000
+Options:
+    --predict                 Perform predictions on test dataset
+    -s --samples=INT          When specified set the number of samples for Likelihood Weighting
+    -p --prob=Event           Hypothesis event
+    -c --cond=[<Event1>,...]  List of evidencies
+    -h --help                 Print this message
+    """)
+
+if __name__ == '__main__':
+    
+    if len(sys.argv) <= 1:
+        print('Missing arguments')
+        sys.exit(1)
+
+    config = parse_args(sys.argv[1:])
+
+    if config.show_help:
+        print_help()
+        sys.exit(0)
+
+    tr = pd.read_csv(config.train_file)
+    ts = pd.read_csv(config.test_file)
+
+    if not config.mode_predict:
+        tr = pd.concat([tr, ts], axis=0)
+        del ts
+
+    bn = BayesNetwork(tr)
+    bn.add_edge('wifes_age', 'wifes_edu')
+    bn.add_edge('wifes_age', 'wifes_rel')
+    bn.add_edge('n_children', 'wifes_working')
+    bn.add_edge('wifes_age', 'wifes_working')
+    bn.add_edge('husbands_occ', 'wifes_working')
+    bn.add_edge('sol', 'wifes_working')
+    bn.add_edge('husbands_edu', 'husbands_occ')
+    bn.add_edge('sol', 'n_children')
+    bn.add_edge('wifes_age', 'n_children')
+    bn.add_edge('wifes_edu', 'n_children')
+    bn.add_edge('media', 'n_children')
+    bn.add_edge('wifes_edu', 'sol')
+    bn.add_edge('husbands_occ', 'sol')
+    bn.add_edge('wifes_edu', 'media')
+    bn.add_edge('husbands_edu', 'media')
+    bn.add_edge('wifes_rel', 'media')
+    bn.add_edge('wifes_age', 'contraceptive')
+    bn.add_edge('wifes_edu', 'contraceptive')
+    bn.add_edge('n_children', 'contraceptive')
+    bn.add_edge('wifes_working', 'contraceptive')
+
+    if config.mode_predict:
+        y_preds = bn.predict(ts.drop('contraceptive', axis=1))
+        score = accuracy_score(ts['contraceptive'], y_preds) * 100
+        print('Accuracy = {:.2f}%'.format(score))
+    else:
+        hypothesis, evidencies = None, None
+        if config.prob_event:
+            hypothesis = config.prob_event
+
+            if config.cond_events:
+                evidencies = config.cond_events
+
+            if evidencies:
+                if config.samples == 0:
+                    p = bn.cond_prob(hypothesis, evidencies)
+                    print('P({}) = {:.4f}'.format(hypothesis, p))
+                elif config.samples > 0:
+                    nevidencies = len(tr.columns) - 1
+                    lw = bn.likelihood_weighting(nevidencies, config.samples)
+                    p = lw.cond_prob(hypothesis, evidencies)
+                    evidencies = ','.join(config.cond_events)
+                    print('P({}|{}) = {:.4f}'.format(hypothesis, evidencies, p))
+                else:
+                    print('Invalid number of samples')
+                    sys.exit(1)
+            else:
+                if config.samples == 0:
+                    p = bn.prob(hypothesis)
+                    print('P({}) = {:.4f}'.format(hypothesis, p))
+                elif config.samples > 0:
+                    nevidencies = len(tr.columns) - 1
+                    lw = bn.likelihood_weighting(nevidencies, config.samples)
+                    p = lw.prob(hypothesis)
+                    evidencies = ','.join(config.cond_events)
+                    print('P({}|{}) = {:.4f}'.format(hypothesis, evidencies, p))
+                else:
+                    print('Invalid number of samples')
+                    sys.exit(1)
+        else:
+            print('Missing --prob argument')
+            sys.exit(1)
