@@ -102,9 +102,18 @@ if __name__ == '__main__':
     bn.add_edge('wifes_working', 'contraceptive')
 
     if config.mode_predict:
-        y_preds = bn.predict(ts.drop('contraceptive', axis=1))
-        score = accuracy_score(ts['contraceptive'], y_preds) * 100
+        import seaborn as sns
+        from sklearn.metrics import confusion_matrix
+        import matplotlib.pyplot as plt
+        y_true = ts['contraceptive']
+        y_pred = bn.predict(ts.drop('contraceptive', axis=1))
+        score = accuracy_score(y_true, y_pred) * 100
         print('Accuracy = {:.2f}%'.format(score))
+        hm = sns.heatmap(confusion_matrix(y_true, y_pred), cmap='Blues', cbar=False, xticklabels=['no-use','long-term','short-term'], yticklabels=['no-use','long-term','short-term'], annot=True)
+        hm.set(xlabel='Previsão', ylabel='Real')
+        for item in hm.get_yticklabels():
+            item.set_rotation(45)
+        plt.show()
     else:
         hypothesis, evidencies = None, None
         if config.prob_event:
@@ -116,7 +125,8 @@ if __name__ == '__main__':
             if evidencies:
                 if config.samples == 0:
                     p = bn.cond_prob(hypothesis, evidencies)
-                    print('P({}) = {:.4f}'.format(hypothesis, p))
+                    evidencies = ','.join(config.cond_events)
+                    print('P({}|{}) = {:.4f}'.format(hypothesis, evidencies, p))
                 elif config.samples > 0:
                     nevidencies = len(tr.columns) - 1
                     lw = bn.likelihood_weighting(nevidencies, config.samples)
@@ -134,8 +144,7 @@ if __name__ == '__main__':
                     nevidencies = len(tr.columns) - 1
                     lw = bn.likelihood_weighting(nevidencies, config.samples)
                     p = lw.prob(hypothesis)
-                    evidencies = ','.join(config.cond_events)
-                    print('P({}|{}) = {:.4f}'.format(hypothesis, evidencies, p))
+                    print('P({}) = {:.4f}'.format(hypothesis, p))
                 else:
                     print('Invalid number of samples')
                     sys.exit(1)

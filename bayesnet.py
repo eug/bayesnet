@@ -1,5 +1,6 @@
 from itertools import product
 from operator import itemgetter
+
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
@@ -645,7 +646,7 @@ class BayesNetwork:
 
         # initialize weight table
         W = {}
-        W['w'] = []
+        W[LikelihoodWeighting.WEIGHT_KEY] = []
         for v in self.vertices:
             W[v] = []
 
@@ -695,6 +696,6 @@ class BayesNetwork:
                     W[var].append(event)
                     evidencies.append(event)
 
-            W['w'].append(w)
+            W[LikelihoodWeighting.WEIGHT_KEY].append(w)
 
         return LikelihoodWeighting(pd.DataFrame(W))
