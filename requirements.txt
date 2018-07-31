@@ -1,0 +1,8 @@
+pandas
+sklearn
+matplotlib
+networkx
+numpy
+tqdm
+pygraphviz
+pydot
